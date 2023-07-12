@@ -10,15 +10,16 @@
 #include <config.h>
 
 uint32_t colors[] = {
-    0x000000,
-    0x32A8A0,
-    0x0000FF,
-    0xFFEA00,
-    0x00FF00,
-    0xFF0000,
-    0xCF067C,
-    0xFF0800
+    0x32A8A0, // Cyan
+    0x0000FF, // Blue
+    0xFFEA00, // Yellow
+    0x00FF00, // Green
+    0xFF0000, // Red
+    0xCF067C, // Purple
+    0xFF0800  // Orange
 }; 
+
+static 
 
 void handleLoRaUplink(int packetSize);
 void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len); 
@@ -105,8 +106,8 @@ void setup() {
     LoRaUplink.onReceive(handleLoRaUplink); 
   }
 
-  //pinMode(DOWNLINK_LED, OUTPUT);
-  //pinMode(UPLINK_LED, OUTPUT);
+  pinMode(DOWNLINK_LED, OUTPUT);
+  pinMode(UPLINK_LED, OUTPUT);
 
   led.begin();
   uint32_t ledColor = colors[3];
@@ -121,50 +122,58 @@ void loop() {
   while (LoRaUplinkBuffer.available()) {
     LoRaCapsuleUplink.decode(LoRaUplinkBuffer.read());
   }
-  // int a = LoRaDownlink.parsePacket();
-  // if (a) {
-  //   Serial.println("Received some stuff on downlink radio");
-  // }
-  // int b = LoRaUplink.parsePacket();
-  // if (b) {
-  //  handleLoRaUplink(b);
-  // }
 }
 
 void handleLoRaDownlink(int packetSize) {
   for (int i = 0; i < packetSize; i++) {
     LoRaDownlinkBuffer.write(LoRaDownlink.read());
   }
-  Serial.println("Byte array received on downlink radio");
 }
 
 void handleLoRaUplink(int packetSize) {
+  digitalWrite(UPLINK_LED, HIGH);
   for (int i = 0; i < packetSize; i++) {
     LoRaUplinkBuffer.write(LoRaUplink.read());
   }
-  Serial.println("Byte array received on uplink radio");
+  delay(50);
+  digitalWrite(UPLINK_LED, LOW);
 }
 
 void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
-  Serial.println("handleLoRaCapsuleUplink");
-  //digitalWrite(UPLINK_LED, HIGH);
-  uint8_t* packetToSend = LoRaCapsuleDownlink.encode(packetId,dataIn,len);
-  //delay(1000);
-  LoRaDownlink.beginPacket();
-  LoRaDownlink.write(packetToSend,LoRaCapsuleDownlink.getCodedLen(len));
-  LoRaDownlink.endPacket();
-  LoRaDownlink.receive();
-  delete[] packetToSend;
+  if (DEBUG) {
+    SERIAL_TO_PC.print("Received packet from GS with id: ");
+    SERIAL_TO_PC.println(packetId);
+  }
 
-  uint32_t ledColor = colors[random(0,8)];
+  switch (packetId) {
+    case CAPSULE_ID::GSE_VENT:
+  }
+
+  // digitalWrite(DOWNLINK_LED, HIGH);
+  // uint8_t* packetToSend = LoRaCapsuleDownlink.encode(packetId,dataIn,len);
+  // delay(50);
+  // LoRaDownlink.beginPacket();
+  // LoRaDownlink.write(packetToSend,LoRaCapsuleDownlink.getCodedLen(len));
+  // LoRaDownlink.endPacket();
+  // LoRaDownlink.receive();
+  // delete[] packetToSend;
+
+  // if (DEBUG) {
+  //   SERIAL_TO_PC.print("Sent packet to GS with id: ");
+  //   SERIAL_TO_PC.println(packetId);
+  // }
+
+  uint32_t ledColor = colors[random(0,7)];
   led.fill(ledColor);
   led.show();
-  digitalWrite(UPLINK_LED, LOW);
+  digitalWrite(DOWNLINK_LED, LOW);
 }
 
 // We never "received" anything with the downlink radio.. we just send stuff, still the capsule 
 // object needs its callback function to be initialised because Capsule is designed to be
 // bidirectional so we just leave it empty.
 void handleLoRaCapsuleDownlink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
-  Serial.println("handleLoRaCapsuleDownlink");
+  if (DEBUG) {
+    SERIAL_TO_PC.println("Received packet on the downlink radio.. shouldn't happen");
+    }
 }
