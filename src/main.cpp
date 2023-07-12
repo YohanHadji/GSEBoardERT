@@ -19,7 +19,7 @@ uint32_t colors[] = {
     0xFF0800  // Orange
 }; 
 
-static GSE_cmd_status lastGSEStatus;
+static PacketGSE_downlink lastGSE;
 
 void handleLoRaUplink(int packetSize);
 void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len); 
@@ -137,13 +137,16 @@ void sendGSETelemetry() {
 
   digitalWrite(DOWNLINK_LED, HIGH);
 
-  uint8_t* buffer = new uint8_t[GSE_cmd_status_size];
-  memcpy(buffer, &lastGSEStatus, GSE_cmd_status_size);
-  uint8_t* packetToSend = new uint8_t[LoRaCapsuleDownlink.getCodedLen(GSE_cmd_status_size)];
-  packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, buffer, GSE_cmd_status_size);
+  lastGSE.tankPressure = 1013+sin(millis()/10000.0)*100;
+  Serial.println(lastGSE.tankPressure);
+
+  uint8_t* buffer = new uint8_t[packetGSE_downlink_size];
+  memcpy(buffer, &lastGSE, packetGSE_downlink_size);
+  uint8_t* packetToSend = new uint8_t[LoRaCapsuleDownlink.getCodedLen(packetGSE_downlink_size)];
+  packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, buffer, packetGSE_downlink_size);
   
   LoRaDownlink.beginPacket();
-  LoRaDownlink.write(packetToSend, LoRaCapsuleDownlink.getCodedLen(GSE_cmd_status_size));
+  LoRaDownlink.write(packetToSend, LoRaCapsuleDownlink.getCodedLen(packetGSE_downlink_size));
   LoRaDownlink.endPacket();
 
   delete[] buffer;
@@ -179,10 +182,10 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
 
   switch (packetId) {
     case CAPSULE_ID::GSE_FILLING_N2O:
-      lastGSEStatus.fillingN2O = lastCmd.value;
+      lastGSE.status.fillingN2O = lastCmd.value;
     break;
     case CAPSULE_ID::GSE_VENT:
-        lastGSEStatus.vent = lastCmd.value;
+        lastGSE.status.vent = lastCmd.value;
     break;
   }
 
