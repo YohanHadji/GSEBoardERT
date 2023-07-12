@@ -179,20 +179,10 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
 
   switch (packetId) {
     case CAPSULE_ID::GSE_FILLING_N2O:
-      if (lastCmd.value == CMD_ACTIVE) {
-        lastGSEStatus.fillingN2O = STATUS_ACTIVE;
-      } 
-      else if (lastCmd.value == CMD_INACTIVE) {
-        lastGSEStatus.fillingN2O = STATUS_INACTIVE;
-      }
+      lastGSEStatus.fillingN2O = lastCmd.value;
     break;
     case CAPSULE_ID::GSE_VENT:
-      if (lastCmd.value == CMD_ACTIVE) {
-        lastGSEStatus.vent = STATUS_ACTIVE;
-      } 
-      else if (lastCmd.value == CMD_INACTIVE) {
-        lastGSEStatus.vent = STATUS_INACTIVE;
-      }
+        lastGSEStatus.vent = lastCmd.value;
     break;
   }
 
