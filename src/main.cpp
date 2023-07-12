@@ -19,13 +19,15 @@ uint32_t colors[] = {
     0xFF0800  // Orange
 }; 
 
-static 
+static GSE_cmd_status lastGSEStatus;
 
 void handleLoRaUplink(int packetSize);
 void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len); 
 
 void handleLoRaDownlink(int packetSize);
 void handleLoRaCapsuleDownlink(uint8_t packetId, uint8_t *dataIn, uint32_t len); 
+
+void sendGSETelemetry();
 
 Adafruit_NeoPixel led(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800); // 1 led
 
@@ -122,6 +124,33 @@ void loop() {
   while (LoRaUplinkBuffer.available()) {
     LoRaCapsuleUplink.decode(LoRaUplinkBuffer.read());
   }
+  {
+    static unsigned long lastPacketSent;
+    if ((millis()-lastPacketSent)>(1000/GSE_TELEMETRY_RATE)) {
+      lastPacketSent = millis();
+      sendGSETelemetry();
+    }
+  }
+}
+
+void sendGSETelemetry() {
+
+  digitalWrite(DOWNLINK_LED, HIGH);
+
+  uint8_t* buffer = new uint8_t[GSE_cmd_status_size];
+  memcpy(buffer, &lastGSEStatus, GSE_cmd_status_size);
+  uint8_t* packetToSend = new uint8_t[LoRaCapsuleDownlink.getCodedLen(GSE_cmd_status_size)];
+  packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, buffer, GSE_cmd_status_size);
+  
+  LoRaDownlink.beginPacket();
+  LoRaDownlink.write(packetToSend, LoRaCapsuleDownlink.getCodedLen(GSE_cmd_status_size));
+  LoRaDownlink.endPacket();
+
+  delete[] buffer;
+  delete[] packetToSend;
+
+  digitalWrite(DOWNLINK_LED, LOW);
+
 }
 
 void handleLoRaDownlink(int packetSize) {
@@ -145,23 +174,27 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
     SERIAL_TO_PC.println(packetId);
   }
 
+  Packet_cmd lastCmd;
+  memcpy(&lastCmd, dataIn, sizeof(Packet_cmd));
+
   switch (packetId) {
+    case CAPSULE_ID::GSE_FILLING_N2O:
+      if (lastCmd.value == CMD_ACTIVE) {
+        lastGSEStatus.fillingN2O = STATUS_ACTIVE;
+      } 
+      else if (lastCmd.value == CMD_INACTIVE) {
+        lastGSEStatus.fillingN2O = STATUS_INACTIVE;
+      }
+    break;
     case CAPSULE_ID::GSE_VENT:
+      if (lastCmd.value == CMD_ACTIVE) {
+        lastGSEStatus.vent = STATUS_ACTIVE;
+      } 
+      else if (lastCmd.value == CMD_INACTIVE) {
+        lastGSEStatus.vent = STATUS_INACTIVE;
+      }
+    break;
   }
-
-  // digitalWrite(DOWNLINK_LED, HIGH);
-  // uint8_t* packetToSend = LoRaCapsuleDownlink.encode(packetId,dataIn,len);
-  // delay(50);
-  // LoRaDownlink.beginPacket();
-  // LoRaDownlink.write(packetToSend,LoRaCapsuleDownlink.getCodedLen(len));
-  // LoRaDownlink.endPacket();
-  // LoRaDownlink.receive();
-  // delete[] packetToSend;
-
-  // if (DEBUG) {
-  //   SERIAL_TO_PC.print("Sent packet to GS with id: ");
-  //   SERIAL_TO_PC.println(packetId);
-  // }
 
   uint32_t ledColor = colors[random(0,7)];
   led.fill(ledColor);

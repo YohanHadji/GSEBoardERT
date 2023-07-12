@@ -5,6 +5,8 @@
 #define SERIAL_TO_PC    Serial
 #define SERIAL_TO_PC_BAUD 115200
 
+#define GSE_TELEMETRY_RATE 2
+
 #define LORA_UPLINK_FREQ         UPLINK_FREQUENCY
 #define LORA_UPLINK_POWER        UPLINK_POWER
 #define LORA_UPLINK_BW           UPLINK_BW
