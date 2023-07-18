@@ -195,7 +195,7 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
   digitalWrite(DOWNLINK_LED, LOW);
 }
 
-// We never "received" anything with the downlink radio.. we just send stuff, still the capsule 
+// We never "receive" anything with the downlink radio.. we just send stuff, still the capsule 
 // object needs its callback function to be initialised because Capsule is designed to be
 // bidirectional so we just leave it empty.
 void handleLoRaCapsuleDownlink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
