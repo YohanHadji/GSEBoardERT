@@ -142,6 +142,8 @@ void sendGSETelemetry() {
 
   uint8_t* buffer = new uint8_t[packetGSE_downlink_size];
   memcpy(buffer, &lastGSE, packetGSE_downlink_size);
+
+  
   uint8_t* packetToSend = new uint8_t[LoRaCapsuleDownlink.getCodedLen(packetGSE_downlink_size)];
   packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, buffer, packetGSE_downlink_size);
   
