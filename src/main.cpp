@@ -9,6 +9,9 @@
 #include "../ERT_RF_Protocol_Interface/ParameterDefinition.h"
 #include <config.h>
 
+#define GSE_FILLING_VALVE_PIN   8
+#define GSE_VENT_VALVE_PIN      9
+
 uint32_t colors[] = {
     0x32A8A0, // Cyan
     0x0000FF, // Blue
@@ -111,6 +114,9 @@ void setup() {
   pinMode(DOWNLINK_LED, OUTPUT);
   pinMode(UPLINK_LED, OUTPUT);
 
+  pinMode(GSE_FILLING_VALVE_PIN, OUTPUT);
+  pinMode(GSE_VENT_VALVE_PIN, OUTPUT);
+
   led.begin();
   uint32_t ledColor = colors[3];
   led.fill(ledColor);
@@ -185,9 +191,20 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
   switch (packetId) {
     case CAPSULE_ID::GSE_FILLING_N2O:
       lastGSE.status.fillingN2O = lastCmd.value;
+      if (lastCmd.value == ACTIVE) {
+        digitalWrite(GSE_FILLING_VALVE_PIN, HIGH);
+      }
+      else if (lastCmd.value == INACTIVE) {
+        digitalWrite(GSE_FILLING_VALVE_PIN, LOW);
+      }
     break;
     case CAPSULE_ID::GSE_VENT:
-        lastGSE.status.vent = lastCmd.value;
+      lastGSE.status.vent = lastCmd.value;
+      if (lastCmd.value == ACTIVE) {
+          digitalWrite(GSE_VENT_VALVE_PIN, HIGH);
+      } else if (lastCmd.value == INACTIVE) {
+          digitalWrite(GSE_VENT_VALVE_PIN, LOW);
+      }
     break;
   }
 
