@@ -144,12 +144,12 @@ void sendGSETelemetry() {
   digitalWrite(DOWNLINK_LED, HIGH);
 
   lastGSE.tankPressure = 1013+sin(millis()/10000.0)*100;
-  Serial.println(lastGSE.tankPressure);
+  lastGSE.fillingPressure = 1013+cos(millis()/10000.0)*100;
+  lastGSE.tankTemperature = 20+sin(millis()/10000.0)*10;
 
   uint8_t* buffer = new uint8_t[packetGSE_downlink_size];
   memcpy(buffer, &lastGSE, packetGSE_downlink_size);
 
-  
   uint8_t* packetToSend = new uint8_t[LoRaCapsuleDownlink.getCodedLen(packetGSE_downlink_size)];
   packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, buffer, packetGSE_downlink_size);
   
