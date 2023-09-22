@@ -185,27 +185,29 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
     SERIAL_TO_PC.println(packetId);
   }
 
-  Packet_cmd lastCmd;
-  memcpy(&lastCmd, dataIn, sizeof(Packet_cmd));
+  av_uplink_t lastCmd;
+  memcpy(&lastCmd, dataIn, av_uplink_size);
 
-  switch (packetId) {
-    case CAPSULE_ID::GSE_FILLING_N2O:
-      lastGSE.status.fillingN2O = lastCmd.value;
-      if (lastCmd.value == ACTIVE) {
-        digitalWrite(GSE_FILLING_VALVE_PIN, HIGH);
-      }
-      else if (lastCmd.value == INACTIVE) {
-        digitalWrite(GSE_FILLING_VALVE_PIN, LOW);
-      }
-    break;
-    case CAPSULE_ID::GSE_VENT:
-      lastGSE.status.vent = lastCmd.value;
-      if (lastCmd.value == ACTIVE) {
-          digitalWrite(GSE_VENT_VALVE_PIN, HIGH);
-      } else if (lastCmd.value == INACTIVE) {
-          digitalWrite(GSE_VENT_VALVE_PIN, LOW);
-      }
-    break;
+  if (packetId == CAPSULE_ID::GS_CMD) {
+    switch (lastCmd.order_id) {
+      case CMD_ID::GSE_FILLING_N2O:
+        lastGSE.status.fillingN2O = lastCmd.order_value;
+        if (lastCmd.order_value == ACTIVE) {
+          digitalWrite(GSE_FILLING_VALVE_PIN, HIGH);
+        }
+        else if (lastCmd.order_value == INACTIVE) {
+          digitalWrite(GSE_FILLING_VALVE_PIN, LOW);
+        }
+      break;
+      case CMD_ID::GSE_VENT:
+        lastGSE.status.vent = lastCmd.order_value;
+        if (lastCmd.order_value == ACTIVE) {
+            digitalWrite(GSE_VENT_VALVE_PIN, HIGH);
+        } else if (lastCmd.order_value == INACTIVE) {
+            digitalWrite(GSE_VENT_VALVE_PIN, LOW);
+        }
+      break;
+    }
   }
 
   uint32_t ledColor = colors[random(0,7)];
