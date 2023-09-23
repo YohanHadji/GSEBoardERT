@@ -147,8 +147,9 @@ void loop() {
 void sendGSETelemetry() {
     digitalWrite(DOWNLINK_LED, HIGH);
 
-    lastGSE.tankPressure = 1013 + sin(millis() / 10000.0) * 100;
-    //Serial.println(lastGSE.tankPressure);
+  lastGSE.tankPressure = 1013+sin(millis()/10000.0)*100;
+  lastGSE.fillingPressure = 1013+cos(millis()/10000.0)*100;
+  lastGSE.tankTemperature = 20+sin(millis()/10000.0)*10;
 
     uint8_t *buffer = new uint8_t[packetGSE_downlink_size];
     memcpy(buffer, &lastGSE, packetGSE_downlink_size);
@@ -188,32 +189,29 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
     av_uplink_t uplink_packet;
     memcpy(&uplink_packet, dataIn, av_uplink_size);
 	
-    switch (packetId) {
-        case CAPSULE_ID::GS_CMD: {
-            switch (uplink_packet.order_id) {
-                case CMD_ID::GSE_FILLING_N2O:
-                    lastGSE.status.fillingN2O = uplink_packet.order_value;
-                    if (uplink_packet.order_value == ACTIVE) {
-                        digitalWrite(GSE_FILLING_VALVE_PIN, HIGH);
-                    } else if (uplink_packet.order_value == INACTIVE) {
-                        digitalWrite(GSE_FILLING_VALVE_PIN, LOW);
-                    }
-                    break;
-                case CMD_ID::GSE_VENT:
-                    lastGSE.status.vent = uplink_packet.order_value;
-                    if (uplink_packet.order_value == ACTIVE) {
-                        digitalWrite(GSE_VENT_VALVE_PIN, HIGH);
-                    } else if (uplink_packet.order_value == INACTIVE) {
-                        digitalWrite(GSE_VENT_VALVE_PIN, LOW);
-                    }
-                    break;
-                case CMD_ID::AV_CMD_DISCONNECT:
-                    if (uplink_packet.order_value == ACTIVE) {
-                        digitalWrite(GSE_DISCONNECT_PIN, HIGH);
-                    }
-                    break;
-            }
-            break;
+    if (packetId == CAPSULE_ID::GS_CMD) {
+        switch (uplink_packet.order_id) {
+            case CMD_ID::GSE_FILLING_N2O:
+                lastGSE.status.fillingN2O = uplink_packet.order_value;
+                if (uplink_packet.order_value == ACTIVE) {
+                    digitalWrite(GSE_FILLING_VALVE_PIN, HIGH);
+                } else if (uplink_packet.order_value == INACTIVE) {
+                    digitalWrite(GSE_FILLING_VALVE_PIN, LOW);
+                }
+                break;
+            case CMD_ID::GSE_VENT:
+                lastGSE.status.vent = uplink_packet.order_value;
+                if (uplink_packet.order_value == ACTIVE) {
+                    digitalWrite(GSE_VENT_VALVE_PIN, HIGH);
+                } else if (uplink_packet.order_value == INACTIVE) {
+                    digitalWrite(GSE_VENT_VALVE_PIN, LOW);
+                }
+                break;
+            case CMD_ID::AV_CMD_DISCONNECT:
+                if (uplink_packet.order_value == ACTIVE) {
+                    digitalWrite(GSE_DISCONNECT_PIN, HIGH);
+                }
+                break;
         }
     }
 	delay(50); // delay to see the LED
