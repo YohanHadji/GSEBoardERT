@@ -1,6 +1,6 @@
 #include "../ERT_RF_Protocol_Interface/ParameterDefinition.h"
 
-#define DEBUG true
+#define DEBUG   // comment if not
 
 #define SERIAL_TO_PC    Serial
 #define SERIAL_TO_PC_BAUD 115200
