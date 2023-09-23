@@ -9,9 +9,10 @@
 #include "../ERT_RF_Protocol_Interface/ParameterDefinition.h"
 #include <config.h>
 
-#define GSE_VENT_VALVE_PIN      9
-#define GSE_FILLING_VALVE_PIN   8
-#define GSE_DISCONNECT_PIN      7
+#define GSE_VENT_VALVE_PIN       16
+#define GSE_FILLING_VALVE_PIN    17
+#define GSE_DISCONNECT_PIN_1     14
+#define GSE_DISCONNECT_PIN_2     15  // redundance
 
 uint32_t colors[] = {
     0x32A8A0, // Cyan
@@ -107,6 +108,7 @@ void setup() {
         // LoRaUplink.setSyncWord(LORA_UPLINK_SYNC_WORD);
         // LoRaUplink.enableCrc();
         LoRaUplink.setTxPower(LORA_UPLINK_POWER);
+        LoRaUplink.enableInvertIQ();
         // LoRa.setOCP(LORA_UPLINK_CURRENT_LIMIT);
         LoRaUplink.receive();
         LoRaUplink.onReceive(handleLoRaUplink);
@@ -119,8 +121,10 @@ void setup() {
     digitalWrite(GSE_FILLING_VALVE_PIN, LOW);
     pinMode(GSE_VENT_VALVE_PIN, OUTPUT);
     digitalWrite(GSE_VENT_VALVE_PIN, LOW);
-    pinMode(GSE_DISCONNECT_PIN, OUTPUT);
-    digitalWrite(GSE_DISCONNECT_PIN, LOW);
+    pinMode(GSE_DISCONNECT_PIN_1, OUTPUT);
+    digitalWrite(GSE_DISCONNECT_PIN_1, LOW);
+    pinMode(GSE_DISCONNECT_PIN_2, OUTPUT);
+    digitalWrite(GSE_DISCONNECT_PIN_2, LOW);
 
     led.begin();
     uint32_t ledColor = colors[3];
@@ -188,7 +192,7 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
 
     av_uplink_t uplink_packet;
     memcpy(&uplink_packet, dataIn, av_uplink_size);
-	
+
     if (packetId == CAPSULE_ID::GS_CMD) {
         switch (uplink_packet.order_id) {
             case CMD_ID::GSE_FILLING_N2O:
@@ -209,7 +213,8 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
                 break;
             case CMD_ID::AV_CMD_DISCONNECT:
                 if (uplink_packet.order_value == ACTIVE) {
-                    digitalWrite(GSE_DISCONNECT_PIN, HIGH);
+                    digitalWrite(GSE_DISCONNECT_PIN_1, HIGH);
+                    digitalWrite(GSE_DISCONNECT_PIN_2, HIGH);
                 }
                 break;
         }
