@@ -34,7 +34,7 @@
 
 // Pressure sensor
 #define FILLING_PRESSURE_PIN    A6
-#define TANK_PRESSURE_PIN       A7
+#define TANK_PRESSURE_PIN       A5
 
 // #define VOLTAGE_DIVIDER(v)      (v)*(14.3 + 10.0) / (10.0) // 150k 51k
 #define V_SUPPLY 	            (5000.0) //mv
@@ -101,7 +101,7 @@ void setup() {
     delay(1000);
 
     lastGSE.status.fillingN2O = INACTIVE;
-    lastGSE.status.vent = ACTIVE;
+    lastGSE.status.vent = INACTIVE;
 
 	// 1st LoRa initialization
     {
@@ -271,9 +271,9 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
                 break;
             case CMD_ID::GSE_CMD_VENT:
                 lastGSE.status.vent = uplink_packet.order_value;
-                if (uplink_packet.order_value == INACTIVE) { // valve normally close
+                if (uplink_packet.order_value == ACTIVE) { // valve normally close
                     digitalWrite(GSE_VENT_VALVE_PIN, HIGH);
-                } else if (uplink_packet.order_value == ACTIVE) {
+                } else if (uplink_packet.order_value == INACTIVE) {
                     digitalWrite(GSE_VENT_VALVE_PIN, LOW);
                 }
                 break;
