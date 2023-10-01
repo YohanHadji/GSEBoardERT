@@ -4,15 +4,54 @@
 #include <LoRa.h>
 #include <SPI.h>
 #include <Adafruit_NeoPixel.h>
+#include <Wire.h>
+#include <Adafruit_MAX31865.h>
 
 #include "../ERT_RF_Protocol_Interface/PacketDefinition.h"
 #include "../ERT_RF_Protocol_Interface/ParameterDefinition.h"
 #include <config.h>
 
+#define DISCONNECTING_TIMEOUT    10000      // 10 sec for each pin in successive mode 
+
 #define GSE_VENT_VALVE_PIN       16
 #define GSE_FILLING_VALVE_PIN    17
 #define GSE_DISCONNECT_PIN_1     14
 #define GSE_DISCONNECT_PIN_2     15  // redundance
+
+#define DIO_0_PIN         (2)
+#define DIO_1_PIN         (3)
+#define DIO_2_PIN         (4)
+#define DIO_3_PIN         (5)
+#define DIO_4_PIN         (6)
+#define DIO_5_PIN         (7)
+#define DIO_6_PIN         (8)
+#define DIO_7_PIN         (9)
+// The value of the Rref resistor. Use 430.0 for PT100 and 4300.0 for PT1000
+#define RREF      430.0
+// The 'nominal' 0-degrees-C resistance of the sensor
+// 100.0 for PT100, 1000.0 for PT1000
+#define RNOMINAL  100.0
+
+// Pressure sensor
+#define FILLING_PRESSURE_PIN    A6
+#define TANK_PRESSURE_PIN       A7
+
+// #define VOLTAGE_DIVIDER(v)      (v)*(14.3 + 10.0) / (10.0) // 150k 51k
+#define V_SUPPLY 	            (5000.0) //mv
+#define P_MAX		            (60.0)   //bar
+#define P_MIN      	            (1.0)    //bar
+
+float convert_to_pressure(float ADC_value) {
+        // Serial.println("val: " + String(ADC_value));
+    float voltage = ADC_value / 1024.0 * 3300.0; // mV
+    // Serial.println("Volateg: " + String(voltage));
+    float voltage_sensor = voltage * ((150.0 + 51.0 ) / 150.0);  // voltage divider with R=150k and 51k Ohm
+        // Serial.println("V_ADC: " + String(voltage_sensor));
+    float delta_p = P_MAX - P_MIN;
+    float v_max = 0.8 * V_SUPPLY;
+    float v_min = 0.1 * V_SUPPLY;
+    return (delta_p * (voltage_sensor - v_min)) / v_max + P_MIN;
+}
 
 uint32_t colors[] = {
     0x32A8A0, // Cyan
@@ -25,6 +64,10 @@ uint32_t colors[] = {
 }; 
 
 static PacketGSE_downlink lastGSE;
+static int disconnect_time_1 = DISCONNECTING_TIMEOUT; // more than few seconds otherwise ON on start
+static int disconnect_time_2 = DISCONNECTING_TIMEOUT; // more than few seconds otherwise ON on start
+static bool disconnect1_active = false;
+static bool disconnect2_active = false;
 
 void handleLoRaUplink(int packetSize);
 void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len); 
@@ -33,8 +76,12 @@ void handleLoRaDownlink(int packetSize);
 void handleLoRaCapsuleDownlink(uint8_t packetId, uint8_t *dataIn, uint32_t len); 
 
 void sendGSETelemetry();
+void read_temperature();
 
 Adafruit_NeoPixel led(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800); // 1 led
+
+// Use software SPI: CS, DI, DO, CLK
+Adafruit_MAX31865 tempSensor = Adafruit_MAX31865(DIO_4_PIN, DIO_2_PIN,DIO_1_PIN,DIO_0_PIN);
 
 LoopbackStream LoRaDownlinkBuffer(1024);
 LoopbackStream LoRaUplinkBuffer(1024);
@@ -52,6 +99,9 @@ static LoRaClass LoRaDownlink;
 void setup() {
     SERIAL_TO_PC.begin(SERIAL_TO_PC_BAUD);
     delay(1000);
+
+    lastGSE.status.fillingN2O = INACTIVE;
+    lastGSE.status.vent = ACTIVE;
 
 	// 1st LoRa initialization
     {
@@ -130,6 +180,9 @@ void setup() {
     uint32_t ledColor = colors[3];
     led.fill(ledColor);
     led.show();
+
+    tempSensor.begin(MAX31865_4WIRE);  // set to 2WIRE or 4WIRE as necessary
+
 }
 
 void loop() {
@@ -146,26 +199,39 @@ void loop() {
             sendGSETelemetry();
         }
     }
+    if (disconnect1_active && millis() - disconnect_time_1 > DISCONNECTING_TIMEOUT) {
+        digitalWrite(GSE_DISCONNECT_PIN_1, LOW);
+        digitalWrite(GSE_DISCONNECT_PIN_2, HIGH);
+        disconnect_time_2 = millis();
+        disconnect1_active = false;
+        disconnect2_active = true;
+    }
+    if (disconnect2_active && millis() - disconnect_time_2 > DISCONNECTING_TIMEOUT) {
+        digitalWrite(GSE_DISCONNECT_PIN_2, LOW);
+        disconnect2_active = false;
+    }
 }
 
 void sendGSETelemetry() {
     digitalWrite(DOWNLINK_LED, HIGH);
 
-  lastGSE.tankPressure = 1013+sin(millis()/10000.0)*100;
-  lastGSE.fillingPressure = 1013+cos(millis()/10000.0)*100;
-  lastGSE.tankTemperature = 20+sin(millis()/10000.0)*10;
+    // lastGSE.tankPressure = 1013 + sin(millis() / 10000.0) * 100;
+    lastGSE.tankPressure = convert_to_pressure(analogRead(TANK_PRESSURE_PIN));
+    // Serial.println("Tank pressure: " + String(lastGSE.tankPressure));
+    // lastGSE.fillingPressure = 1013 + cos(millis() / 10000.0) * 100;
+    lastGSE.fillingPressure = convert_to_pressure(analogRead(FILLING_PRESSURE_PIN));
+    // Serial.println("Filling pressure: " + String(lastGSE.fillingPressure));
+    // lastGSE.tankTemperature = 20 + sin(millis() / 10000.0) * 10;
+    lastGSE.disconnectActive = disconnect1_active or disconnect2_active;
 
-    uint8_t *buffer = new uint8_t[packetGSE_downlink_size];
-    memcpy(buffer, &lastGSE, packetGSE_downlink_size);
+    read_temperature();
 
-    uint8_t *packetToSend = new uint8_t[LoRaCapsuleDownlink.getCodedLen(packetGSE_downlink_size)];
-    packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, buffer, packetGSE_downlink_size);
+    uint8_t* packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, (uint8_t*) &lastGSE, packetGSE_downlink_size);
 
     LoRaDownlink.beginPacket();
     LoRaDownlink.write(packetToSend, LoRaCapsuleDownlink.getCodedLen(packetGSE_downlink_size));
     LoRaDownlink.endPacket();
 
-    delete[] buffer;
     delete[] packetToSend;
 
     digitalWrite(DOWNLINK_LED, LOW);
@@ -195,7 +261,7 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
 
     if (packetId == CAPSULE_ID::GS_CMD) {
         switch (uplink_packet.order_id) {
-            case CMD_ID::GSE_FILLING_N2O:
+            case CMD_ID::GSE_CMD_FILLING_N2O:
                 lastGSE.status.fillingN2O = uplink_packet.order_value;
                 if (uplink_packet.order_value == ACTIVE) {
                     digitalWrite(GSE_FILLING_VALVE_PIN, HIGH);
@@ -203,18 +269,22 @@ void handleLoRaCapsuleUplink(uint8_t packetId, uint8_t *dataIn, uint32_t len) {
                     digitalWrite(GSE_FILLING_VALVE_PIN, LOW);
                 }
                 break;
-            case CMD_ID::GSE_VENT:
+            case CMD_ID::GSE_CMD_VENT:
                 lastGSE.status.vent = uplink_packet.order_value;
-                if (uplink_packet.order_value == ACTIVE) {
+                if (uplink_packet.order_value == INACTIVE) { // valve normally close
                     digitalWrite(GSE_VENT_VALVE_PIN, HIGH);
-                } else if (uplink_packet.order_value == INACTIVE) {
+                } else if (uplink_packet.order_value == ACTIVE) {
                     digitalWrite(GSE_VENT_VALVE_PIN, LOW);
                 }
                 break;
-            case CMD_ID::AV_CMD_DISCONNECT:
+            case CMD_ID::GSE_CMD_DISCONNECT:
                 if (uplink_packet.order_value == ACTIVE) {
                     digitalWrite(GSE_DISCONNECT_PIN_1, HIGH);
-                    digitalWrite(GSE_DISCONNECT_PIN_2, HIGH);
+                    // digitalWrite(GSE_DISCONNECT_PIN_2, HIGH); // 10 sec later
+                    disconnect_time_1 = millis();
+                    disconnect1_active = true;
+                    disconnect2_active = false;
+                    digitalWrite(GSE_DISCONNECT_PIN_2, LOW);
                 }
                 break;
         }
@@ -235,4 +305,46 @@ void handleLoRaCapsuleDownlink(uint8_t packetId, uint8_t *dataIn, uint32_t len) 
 #ifdef DEBUG
     SERIAL_TO_PC.println("Received packet on the downlink radio.. shouldn't happen");
 #endif
+}
+
+// from Lucas Pallez
+void read_temperature() {
+    uint16_t rtd = tempSensor.readRTD();
+    float ratio = rtd;
+    ratio /= 32768;
+    // Serial.print("RTD value: ");
+    // Serial.println(rtd);
+    // Serial.print("Ratio = ");
+    // Serial.println(ratio, 8);
+    // Serial.print("Resistance = ");
+    // Serial.println(RREF * ratio, 8);
+    // Serial.print("Temperature = ");
+    // Serial.println(tempSensor.temperature(RNOMINAL, RREF));
+    lastGSE.tankTemperature = tempSensor.temperature(RNOMINAL, RREF);
+
+    // Check and print any faults
+    uint8_t fault = tempSensor.readFault();
+    if (fault) {
+        Serial.print("Fault 0x");
+        Serial.println(fault, HEX);
+        if (fault & MAX31865_FAULT_HIGHTHRESH) {
+            Serial.println("RTD High Threshold");
+        }
+        if (fault & MAX31865_FAULT_LOWTHRESH) {
+            Serial.println("RTD Low Threshold");
+        }
+        if (fault & MAX31865_FAULT_REFINLOW) {
+            Serial.println("REFIN- > 0.85 x Bias");
+        }
+        if (fault & MAX31865_FAULT_REFINHIGH) {
+            Serial.println("REFIN- < 0.85 x Bias - FORCE- open");
+        }
+        if (fault & MAX31865_FAULT_RTDINLOW) {
+            Serial.println("RTDIN- < 0.85 x Bias - FORCE- open");
+        }
+        if (fault & MAX31865_FAULT_OVUV) {
+            Serial.println("Under/Over voltage");
+        }
+        tempSensor.clearFault();
+    }
 }
