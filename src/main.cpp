@@ -6,7 +6,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 #include <Adafruit_MAX31865.h>
-// #include <HX711.h> // load cell
+#include <HX711.h> // load cell
 
 #include "../ERT_RF_Protocol_Interface/PacketDefinition.h"
 #include "../ERT_RF_Protocol_Interface/ParameterDefinition.h"
@@ -46,11 +46,11 @@
 #define P_MIN      	            (1.0)    //bar
 
 float convert_to_pressure(float ADC_value) {
-        // Serial.println("val: " + String(ADC_value));
+    // Serial.println("val: " + String(ADC_value));
     float voltage = ADC_value / 1024.0 * 3300.0; // mV
     // Serial.println("Volateg: " + String(voltage));
-    float voltage_sensor = voltage * ((150.0 + 51.0 ) / 150.0);  // voltage divider with R=150k and 51k Ohm
-        // Serial.println("V_ADC: " + String(voltage_sensor));
+    float voltage_sensor = voltage * ((150.0 + 51.0) / 150.0);  // voltage divider with R=150k and 51k Ohm
+    // Serial.println("V_ADC: " + String(voltage_sensor));
     float delta_p = P_MAX - P_MIN;
     float v_max = 0.8 * V_SUPPLY;
     float v_min = 0.1 * V_SUPPLY;
@@ -88,7 +88,7 @@ Adafruit_NeoPixel led(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800); // 1 led
 Adafruit_MAX31865 tempSensor = Adafruit_MAX31865(DIO_4_PIN, DIO_2_PIN,DIO_1_PIN,DIO_0_PIN);
 
 // load cell
-// HX711 loadcell;
+HX711 loadcell;
 
 LoopbackStream LoRaDownlinkBuffer(1024);
 LoopbackStream LoRaUplinkBuffer(1024);
@@ -106,7 +106,6 @@ static LoRaClass LoRaDownlink;
 void setup() {
     SERIAL_TO_PC.begin(SERIAL_TO_PC_BAUD);
     delay(1000);
-    Serial.println("miaou1!");
 
     lastGSE.status.fillingN2O = INACTIVE;
     lastGSE.status.vent = INACTIVE;
@@ -142,12 +141,11 @@ void setup() {
         LoRaDownlink.receive();
         // LoRaDownlink.onReceive(handleLoRaDownlink);
 #if GSE_DOWNLINK_INVERSE_IQ
-        LoRaUplink.enableInvertIQ();
+        LoRaDownlink.enableInvertIQ();
 #else
-        LoRaUplink.disableInvertIQ();
+        LoRaDownlink.disableInvertIQ();
 #endif
     }
-    Serial.println("miaou2!");
 
     // 2nd LoRa initialization
     {
@@ -182,8 +180,6 @@ void setup() {
         LoRaUplink.onReceive(handleLoRaUplink);
     }
 
-    Serial.println("miaou3!");
-
     pinMode(DOWNLINK_LED, OUTPUT);
     pinMode(UPLINK_LED, OUTPUT);
 
@@ -203,7 +199,7 @@ void setup() {
 
     tempSensor.begin(MAX31865_4WIRE);  // set to 2WIRE or 4WIRE as necessary
 
-    // loadcell.begin(LOAD_CELL_PIN_DOUT, LOAD_CELL_PIN_SCK);
+    loadcell.begin(LOAD_CELL_PIN_DOUT, LOAD_CELL_PIN_SCK);
     // loadcell.set_scale(25.0);
     Serial.println("Setup done!");
 }
@@ -249,13 +245,13 @@ void sendGSETelemetry() {
 
     read_temperature();
 
-    // if (loadcell.is_ready()) {
-    //     lastGSE.loadcellRaw = loadcell.read();
-    //     Serial.println("load cell: " + String(lastGSE.loadcellRaw));
-    // } else {
-    //     lastGSE.loadcellRaw = 0;
-    //     Serial.println("HX711 not found, fail!");
-    // }
+    if (loadcell.is_ready()) {
+        lastGSE.loadcellRaw = loadcell.read();
+        Serial.println("load cell: " + String(lastGSE.loadcellRaw));
+    } else {
+        lastGSE.loadcellRaw = 0;
+        Serial.println("HX711 not found, fail!");
+    }
 
     uint8_t* packetToSend = LoRaCapsuleDownlink.encode(CAPSULE_ID::GSE_TELEMETRY, (uint8_t*) &lastGSE, packetGSE_downlink_size);
 
